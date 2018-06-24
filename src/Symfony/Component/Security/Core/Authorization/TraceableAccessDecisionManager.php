@@ -12,7 +12,9 @@
 namespace Symfony\Component\Security\Core\Authorization;
 
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\Authorization\Voter\TraceableVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
+use Symfony\Component\VarDumper\Caster\ClassStub;
 
 /**
  * Decorates the original AccessDecisionManager class to log information
@@ -51,10 +53,25 @@ class TraceableAccessDecisionManager implements AccessDecisionManagerInterface
     {
         $result = $this->manager->decide($token, $attributes, $object);
 
+        $voterDetails = array();
+
+        foreach ($this->voters as $voter) {
+            if ($voter instanceof TraceableVoter) {
+                $voterClass = $voter->getVoterClass();
+                $voterLog = $voter->getVoteLog();
+            } else {
+                $voterClass = get_class($voter);
+                $voterLog = null;
+            }
+
+            $voterDetails[$voterClass] = $voterLog;
+        }
+
         $this->decisionLog[] = array(
             'attributes' => $attributes,
             'object' => $object,
             'result' => $result,
+            'voterDetails' => $voterDetails
         );
 
         return $result;

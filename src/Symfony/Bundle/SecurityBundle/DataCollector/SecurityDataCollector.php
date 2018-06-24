@@ -12,6 +12,8 @@
 namespace Symfony\Bundle\SecurityBundle\DataCollector;
 
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authorization\Voter\TraceableVoter;
+use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 use Symfony\Component\Security\Core\Role\Role;
 use Symfony\Component\Security\Core\Role\RoleHierarchyInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -145,16 +147,31 @@ class SecurityDataCollector extends DataCollector implements LateDataCollectorIn
 
         // collect voters and access decision manager information
         if ($this->accessDecisionManager instanceof TraceableAccessDecisionManager) {
-            $this->data['access_decision_log'] = $this->accessDecisionManager->getDecisionLog();
             $this->data['voter_strategy'] = $this->accessDecisionManager->getStrategy();
 
-            foreach ($this->accessDecisionManager->getVoters() as $voter) {
-                $this->data['voters'][] = $this->hasVarDumper ? new ClassStub(get_class($voter)) : get_class($voter);
+            $decisionLog = $this->accessDecisionManager->getDecisionLog();
+
+            // Voter constants
+            $reflectionClass = new \ReflectionClass(VoterInterface::class);
+            // Allows to get the access constant name from the vote log
+            $voterConstants = array_flip($reflectionClass->getConstants());
+
+            $voterDetails = array();
+            foreach ($decisionLog as $key => $log) {
+                $voterDetails[$key] = array();
+                foreach ($log['voterDetails'] as $voterClass => $voterVote) {
+                    $voterDetails[$key][] = array(
+                        'class' =>  $this->hasVarDumper ? new ClassStub($voterClass) : $voterClass,
+                        'vote' => isset($voterConstants[$voterVote]) ? $voterConstants[$voterVote] : '-'
+                    );
+                }
             }
+            $this->data['voter_details'] = $voterDetails;
+            $this->data['access_decision_log'] = $decisionLog;
         } else {
             $this->data['access_decision_log'] = array();
             $this->data['voter_strategy'] = 'unknown';
-            $this->data['voters'] = array();
+            $this->data['voter_details'] = array();
         }
 
         // collect firewall context information
@@ -342,6 +359,16 @@ class SecurityDataCollector extends DataCollector implements LateDataCollectorIn
     public function getAccessDecisionLog()
     {
         return $this->data['access_decision_log'];
+    }
+
+    /**
+     * Returns the log of the votes processed in the access decision manager
+     *
+     * @return array
+     */
+    public function getVoterDetails()
+    {
+        return $this->data['voter_details'];
     }
 
     /**
