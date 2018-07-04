@@ -15,6 +15,8 @@ CHANGELOG
    and added an "auto" mode to their "secure" config option to make them secure on HTTPS automatically.
  * Deprecated the `simple_form` and `simple_preauth` authentication listeners, use Guard instead.
  * Deprecated the `SimpleFormFactory` and `SimplePreAuthenticationFactory` classes, use Guard instead.
+ * Using `SecurityDataCollector::getVoters()` is deprecated
+ * Added individual voter decisions to the profiler
  
 4.1.0
 -----

@@ -20,6 +20,7 @@ use Symfony\Component\HttpKernel\DataCollector\LateDataCollectorInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManagerInterface;
 use Symfony\Component\Security\Core\Authorization\TraceableAccessDecisionManager;
+use Symfony\Component\Security\Core\Authorization\Voter\TraceableVoter;
 use Symfony\Component\Security\Core\Role\Role;
 use Symfony\Component\Security\Core\Role\RoleHierarchyInterface;
 use Symfony\Component\Security\Core\Role\SwitchUserRole;
@@ -134,14 +135,29 @@ class SecurityDataCollector extends DataCollector implements LateDataCollectorIn
             );
         }
 
+        $this->data['voter_details'] = array();
         // collect voters and access decision manager information
         if ($this->accessDecisionManager instanceof TraceableAccessDecisionManager) {
-            $this->data['access_decision_log'] = $this->accessDecisionManager->getDecisionLog();
             $this->data['voter_strategy'] = $this->accessDecisionManager->getStrategy();
 
             foreach ($this->accessDecisionManager->getVoters() as $voter) {
-                $this->data['voters'][] = $this->hasVarDumper ? new ClassStub(\get_class($voter)) : \get_class($voter);
+                $voterClass = $voter instanceof TraceableVoter ? $voter->getVoterClass() : \get_class($voter);
+                $this->data['voters'][] = $this->hasVarDumper ? new ClassStub($voterClass) : $voterClass;
             }
+
+            $decisionLog = $this->accessDecisionManager->getDecisionLog();
+            foreach ($decisionLog as $key => $log) {
+                $voterDetails[$key] = array();
+                foreach ($log['voterDetails'] as $voterClass => $voterVote) {
+                    $classData = $this->hasVarDumper ? new ClassStub($voterClass) : $voterClass;
+                    $this->data['voter_details'][$key][] = array(
+                        'class' => $classData,
+                        'vote' => $voterVote,
+                    );
+                }
+            }
+
+            $this->data['access_decision_log'] = $decisionLog;
         } else {
             $this->data['access_decision_log'] = array();
             $this->data['voter_strategy'] = 'unknown';
@@ -309,9 +325,13 @@ class SecurityDataCollector extends DataCollector implements LateDataCollectorIn
      * Returns the FQCN of the security voters enabled in the application.
      *
      * @return string[]
+     *
+     * @deprecated deprecated since Symfony 4.2. Use the data returned by {@link getVoterDetails()} instead
      */
     public function getVoters()
     {
+        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 4.2. Use the data returned by getVoterDetails() instead', __METHOD__), E_USER_DEPRECATED);
+
         return $this->data['voters'];
     }
 
@@ -333,6 +353,11 @@ class SecurityDataCollector extends DataCollector implements LateDataCollectorIn
     public function getAccessDecisionLog()
     {
         return $this->data['access_decision_log'];
+    }
+
+    public function getVoterDetails(): iterable
+    {
+        return $this->data['voter_details'];
     }
 
     /**

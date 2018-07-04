@@ -16,6 +16,8 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\Compiler\PriorityTaggedServiceTrait;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Exception\LogicException;
+use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\Security\Core\Authorization\Voter\TraceableVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 
 /**
@@ -41,16 +43,33 @@ class AddSecurityVotersPass implements CompilerPassInterface
             throw new LogicException('No security voters found. You need to tag at least one with "security.voter".');
         }
 
+        $debug = $container->hasParameter('kernel.debug') && $container->getParameter('kernel.debug');
+
+        $decisionManagerVoters = array();
         foreach ($voters as $voter) {
-            $definition = $container->getDefinition((string) $voter);
+            $voterServiceId = (string) $voter;
+            $definition = $container->getDefinition($voterServiceId);
+
             $class = $container->getParameterBag()->resolveValue($definition->getClass());
 
             if (!is_a($class, VoterInterface::class, true)) {
                 throw new LogicException(sprintf('%s must implement the %s when used as a voter.', $class, VoterInterface::class));
             }
+
+            if ($debug) {
+                // Decorate original voters with TraceableVoter
+                $debugVoterServiceId = 'security.voter.debug.'.$voterServiceId;
+                $container
+                    ->register($debugVoterServiceId, TraceableVoter::class)
+                    ->setDecoratedService($voterServiceId)
+                    ->addArgument(new Reference($debugVoterServiceId.'.inner'))
+                    ->setPublic(false);
+            }
+
+            $decisionManagerVoters[] = $voter;
         }
 
         $adm = $container->getDefinition('security.access.decision_manager');
-        $adm->replaceArgument(0, new IteratorArgument($voters));
+        $adm->replaceArgument(0, new IteratorArgument($decisionManagerVoters));
     }
 }

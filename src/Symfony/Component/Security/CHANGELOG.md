@@ -16,6 +16,7 @@ CHANGELOG
 * Deprecated `SimpleAuthenticatorInterface`, `SimpleFormAuthenticatorInterface`,
   `SimplePreAuthenticatorInterface`, `SimpleAuthenticationProvider`, `SimpleAuthenticationHandler`,
   `SimpleFormAuthenticationListener` and `SimplePreAuthenticationListener`. Use Guard instead.
+* Added the `TraceableVoter` class which logs individual voter decisions 
 
 4.1.0
 -----

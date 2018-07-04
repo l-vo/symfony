@@ -258,8 +258,8 @@
         </div>
     {% endif %}
 
-    {% if collector.voters|default([]) is not empty %}
-        <h2>Security Voters <small>({{ collector.voters|length }})</small></h2>
+    {% if collector.accessDecisionLog|default([]) is not empty %}
+        <h2>Access decision log</h2>
 
         <div class="metrics">
             <div class="metric">
@@ -268,47 +268,22 @@
             </div>
         </div>
 
-        <table class="voters">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Voter class</th>
-                </tr>
-            </thead>
+        {% for key, decision in collector.accessDecisionLog %}
+            <table class="decision-log">
+                <col style="width: 120px">
+                <col style="width: 25%">
+                <col style="width: 60%">
 
-            <tbody>
-                {% for voter in collector.voters %}
+                <thead>
                     <tr>
-                        <td class="font-normal text-small text-muted nowrap">{{ loop.index }}</td>
-                        <td class="font-normal">{{ profiler_dump(voter) }}</td>
+                        <th>Result</th>
+                        <th>Attributes</th>
+                        <th>Object</th>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
+                </thead>
 
-    {% if collector.accessDecisionLog|default([]) is not empty %}
-        <h2>Access decision log</h2>
-
-        <table class="decision-log">
-            <col style="width: 30px">
-            <col style="width: 120px">
-            <col style="width: 25%">
-            <col style="width: 60%">
-
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Result</th>
-                    <th>Attributes</th>
-                    <th>Object</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {% for decision in collector.accessDecisionLog %}
+                <tbody>
                     <tr>
-                        <td class="font-normal text-small text-muted nowrap">{{ loop.index }}</td>
                         <td class="font-normal">
                             {{ decision.result
                                 ? '<span class="label status-success same-width">GRANTED</span>'
@@ -331,8 +306,44 @@
                         </td>
                         <td>{{ profiler_dump(decision.seek('object')) }}</td>
                     </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+            {% if collector.voterDetails[key] is not empty %}
+                {% set voter_details_id = 'voter-details-' ~ loop.index %}
+                <a class="btn btn-link text-small sf-toggle" data-toggle-selector="#{{ voter_details_id }}" data-toggle-alt-content="Hide voter details">Show voter details</a>
+                <div id="{{ voter_details_id }}" class="sf-toggle-content sf-toggle-hidden">
+                    <table class="voters">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Voter class</th>
+                                <th>Vote result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for voter_detail in collector.voterDetails[key] %}
+                            <tr>
+                                <td class="font-normal text-small text-muted nowrap">{{ loop.index }}</td>
+                                <td class="font-normal">{{ profiler_dump(voter_detail['class']) }}</td>
+                                <td class="font-normal text-small">
+                                    {% if voter_detail['vote'] is null %}
+                                        -
+                                    {% elseif voter_detail['vote'] == constant('Symfony\\Component\\Security\\Core\\Authorization\\Voter\\VoterInterface::ACCESS_GRANTED') %}
+                                        ACCESS GRANTED
+                                    {% elseif voter_detail['vote'] == constant('Symfony\\Component\\Security\\Core\\Authorization\\Voter\\VoterInterface::ACCESS_ABSTAIN') %}
+                                        ACCESS ABSTAIN
+                                    {% elseif voter_detail['vote'] == constant('Symfony\\Component\\Security\\Core\\Authorization\\Voter\\VoterInterface::ACCESS_DENIED') %}
+                                        ACCESS DENIED
+                                    {% else %}
+                                        unknown ({{ voter_detail['vote'] }})
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        {% endfor %}
     {% endif %}
 {% endblock %}
