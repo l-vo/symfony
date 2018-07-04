@@ -12,6 +12,7 @@
 namespace Symfony\Component\Security\Core\Authorization;
 
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\Authorization\Voter\TraceableVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 
 /**
@@ -49,15 +50,30 @@ class TraceableAccessDecisionManager implements AccessDecisionManagerInterface
      */
     public function decide(TokenInterface $token, array $attributes, $object = null)
     {
-        $result = $this->manager->decide($token, $attributes, $object);
-
-        $this->decisionLog[] = array(
+        $currentDecisionLog = array(
             'attributes' => $attributes,
             'object' => $object,
-            'result' => $result,
+            'voterDetails' => array()
         );
+        $this->decisionLog[] = &$currentDecisionLog;
+
+        $result = $this->manager->decide($token, $attributes, $object);
+
+        $currentDecisionLog['result'] = $result;
 
         return $result;
+    }
+
+    /**
+     * Add voter vote and class to the voter details
+     *
+     * @param VoterInterface $voter voter
+     * @param int $vote vote of the voter
+     */
+    public function addVoterVote(VoterInterface $voter, int $vote)
+    {
+        $currentLogIndex = count($this->decisionLog) - 1;
+        $this->decisionLog[$currentLogIndex]['voterDetails'][] = array('voter' => $voter, 'vote' => $vote);
     }
 
     /**

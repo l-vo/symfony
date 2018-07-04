@@ -12,8 +12,11 @@
 namespace Symfony\Component\Security\Core\Tests\Authorization;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManager;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
+use Symfony\Component\Security\Core\Event\VoteEvent;
 
 class AccessDecisionManagerTest extends TestCase
 {
@@ -111,6 +114,74 @@ class AccessDecisionManagerTest extends TestCase
             array(AccessDecisionManager::STRATEGY_UNANIMOUS, $this->getVoters(0, 0, 2), false, true, false),
             array(AccessDecisionManager::STRATEGY_UNANIMOUS, $this->getVoters(0, 0, 2), true, true, true),
         );
+    }
+
+    public function providerVoteEventDispatched(): \Generator
+    {
+        yield array(
+            AccessDecisionManager::STRATEGY_AFFIRMATIVE,
+            array(VoterInterface::ACCESS_ABSTAIN, VoterInterface::ACCESS_GRANTED),
+            2
+        );
+
+        yield array(
+            AccessDecisionManager::STRATEGY_AFFIRMATIVE,
+            array(VoterInterface::ACCESS_ABSTAIN, VoterInterface::ACCESS_GRANTED, VoterInterface::ACCESS_DENIED),
+            2
+        );
+
+        yield array(
+            AccessDecisionManager::STRATEGY_CONSENSUS,
+            array(VoterInterface::ACCESS_ABSTAIN, VoterInterface::ACCESS_GRANTED, VoterInterface::ACCESS_DENIED),
+            3
+        );
+
+        yield array(
+            AccessDecisionManager::STRATEGY_UNANIMOUS,
+            array(VoterInterface::ACCESS_ABSTAIN, VoterInterface::ACCESS_GRANTED, VoterInterface::ACCESS_DENIED, VoterInterface::ACCESS_ABSTAIN),
+            3
+        );
+    }
+
+    /**
+     * Test that security.authorization.vote event is dispatched each time a vote is processed
+     *
+     * @param string $strategy access decision strategy
+     * @param array $voterVotes vote results that will be returned by the voters
+     * @param int $expectedVoterCalledCount count of the voters which will be actually called (depending on the strategy)
+     *
+     * @dataProvider providerVoteEventDispatched
+     */
+    public function testVoteEventDispatched(string $strategy, array $voterVotes, int $expectedVoterCalledCount)
+    {
+        $voters = array();
+        foreach ($voterVotes as $vote) {
+            $voters[] = $this->getVoter($vote);
+        }
+
+        $eventDispatcher = $this
+            ->getMockBuilder(EventDispatcherInterface::class)
+            ->setMethods(['dispatch'])
+            ->getMockForAbstractClass();
+
+
+        $consecutive = array();
+        for ($i=0; $i<$expectedVoterCalledCount; $i++) {
+            $consecutive[] = array(
+                'security.authorization.vote',
+                new VoteEvent($voters[$i], 'mysubject', array('myattr'), $voterVotes[$i])
+            );
+        }
+
+        $eventDispatcher
+            ->expects($this->exactly($expectedVoterCalledCount))
+            ->method('dispatch')
+            ->withConsecutive(...$consecutive)
+        ;
+
+        $adm = new AccessDecisionManager($voters, $strategy);
+        $adm->setEventDispatcher($eventDispatcher);
+        $adm->decide($this->createMock(TokenInterface::class), array('myattr'), 'mysubject');
     }
 
     protected function getVoters($grants, $denies, $abstains)

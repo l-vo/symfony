@@ -16,6 +16,7 @@ CHANGELOG
 * Deprecated `SimpleAuthenticatorInterface`, `SimpleFormAuthenticatorInterface`,
   `SimplePreAuthenticatorInterface`, `SimpleAuthenticationProvider`, `SimpleAuthenticationHandler`,
   `SimpleFormAuthenticationListener` and `SimplePreAuthenticationListener`. Use Guard instead.
+* dispatch a `VoteEvent` when a voter makes a vote 
 
 4.1.0
 -----

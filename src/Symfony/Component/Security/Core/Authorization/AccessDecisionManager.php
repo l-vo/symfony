@@ -11,8 +11,11 @@
 
 namespace Symfony\Component\Security\Core\Authorization;
 
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
+use Symfony\Component\Security\Core\Event\VoteEvent;
+use Symfony\Component\Security\Core\VoteEvents;
 
 /**
  * AccessDecisionManager is the base class for all access decision managers
@@ -30,6 +33,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
     private $strategy;
     private $allowIfAllAbstainDecisions;
     private $allowIfEqualGrantedDeniedDecisions;
+    private $eventDispatcher;
 
     /**
      * @param iterable|VoterInterface[] $voters                             An array or an iterator of VoterInterface instances
@@ -52,6 +56,11 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
         $this->allowIfEqualGrantedDeniedDecisions = $allowIfEqualGrantedDeniedDecisions;
     }
 
+    public function setEventDispatcher(EventDispatcherInterface $eventDispatcher)
+    {
+        $this->eventDispatcher = $eventDispatcher;
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -70,7 +79,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
     {
         $deny = 0;
         foreach ($this->voters as $voter) {
-            $result = $voter->vote($token, $object, $attributes);
+            $result = $this->vote($voter, $token, $object, $attributes);
             switch ($result) {
                 case VoterInterface::ACCESS_GRANTED:
                     return true;
@@ -111,7 +120,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
         $grant = 0;
         $deny = 0;
         foreach ($this->voters as $voter) {
-            $result = $voter->vote($token, $object, $attributes);
+            $result = $this->vote($voter, $token, $object, $attributes);
 
             switch ($result) {
                 case VoterInterface::ACCESS_GRANTED:
@@ -152,7 +161,7 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
         $grant = 0;
         foreach ($this->voters as $voter) {
             foreach ($attributes as $attribute) {
-                $result = $voter->vote($token, $object, array($attribute));
+                $result = $this->vote($voter, $token, $object, array($attribute));
 
                 switch ($result) {
                     case VoterInterface::ACCESS_GRANTED:
@@ -175,5 +184,19 @@ class AccessDecisionManager implements AccessDecisionManagerInterface
         }
 
         return $this->allowIfAllAbstainDecisions;
+    }
+
+    /**
+     * Vote and dispatch event.
+     */
+    private function vote(VoterInterface $voter, TokenInterface $token, $subject, $attributes): int
+    {
+        $result = $voter->vote($token, $subject, $attributes);
+
+        if ($this->eventDispatcher) {
+            $this->eventDispatcher->dispatch(VoteEvents::VOTE, new VoteEvent($voter, $subject, $attributes, $result));
+        }
+
+        return $result;
     }
 }

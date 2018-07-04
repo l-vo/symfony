@@ -21,6 +21,11 @@ use Symfony\Component\HttpKernel\Event\GetResponseEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Core\Authorization\AccessDecisionManager;
+use Symfony\Component\Security\Core\Authorization\AccessDecisionManagerInterface;
+use Symfony\Component\Security\Core\Authorization\TraceableAccessDecisionManager;
+use Symfony\Component\Security\Core\Authorization\Voter\TraceableVoter;
+use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 use Symfony\Component\Security\Core\Role\Role;
 use Symfony\Component\Security\Core\Role\RoleHierarchy;
 use Symfony\Component\Security\Core\Role\SwitchUserRole;
@@ -219,6 +224,129 @@ class SecurityDataCollectorTest extends TestCase
         $this->assertNotEmpty($collected = $collector->getListeners()[0]);
         $collector->lateCollect();
         $this->addToAssertionCount(1);
+    }
+
+    public function providerCollectDecisionLog(): \Generator
+    {
+        $voter1 = $this->getMockBuilder('Voter1')->getMock();
+        $voter2 = $this->getMockBuilder('Voter2')->getMock();
+
+        yield array(
+            AccessDecisionManager::STRATEGY_AFFIRMATIVE,
+            array(array(
+                'attributes' => array('view'),
+                'object' => new \stdClass(),
+                'result' => true,
+                'voterDetails' => array(
+                    array('voter' => $voter1, 'vote' => VoterInterface::ACCESS_ABSTAIN),
+                    array('voter' => $voter2, 'vote' => VoterInterface::ACCESS_ABSTAIN)
+                ),
+            )),
+            array($voter1, $voter2),
+            array(\get_class($voter1), \get_class($voter2)),
+            array(array(
+                'attributes' => array('view'),
+                'object' => new \stdClass(),
+                'result' => true,
+                'voter_details' => array(
+                    array('class' => \get_class($voter1), 'vote' => VoterInterface::ACCESS_ABSTAIN),
+                    array('class' => \get_class($voter2), 'vote' => VoterInterface::ACCESS_ABSTAIN)
+                ),
+            )),
+        );
+
+        yield array(
+            AccessDecisionManager::STRATEGY_UNANIMOUS,
+            array(
+                array(
+                    'attributes' => array('view', 'edit'),
+                    'object' => new \stdClass(),
+                    'result' => false,
+                    'voterDetails' => array(
+                        array('voter' => $voter1, 'vote' => VoterInterface::ACCESS_DENIED),
+                        array('voter' => $voter2, 'vote' => VoterInterface::ACCESS_GRANTED)
+                    ),
+                ),
+                array(
+                    'attributes' => array('update'),
+                    'object' => new \stdClass(),
+                    'result' => true,
+                    'voterDetails' => array(
+                        array('voter' => $voter1, 'vote' => VoterInterface::ACCESS_GRANTED),
+                        array('voter' => $voter2, 'vote' => VoterInterface::ACCESS_GRANTED)
+                    ),
+                ),
+            ),
+            array($voter1, $voter2),
+            array(\get_class($voter1), \get_class($voter2)),
+            array(
+                array(
+                    'attributes' => array('view', 'edit'),
+                    'object' => new \stdClass(),
+                    'result' => false,
+                    'voter_details' => array(
+                        array('class' => \get_class($voter1), 'vote' => VoterInterface::ACCESS_DENIED),
+                        array('class' => \get_class($voter2), 'vote' => VoterInterface::ACCESS_GRANTED)
+                    ),
+                ),
+                array(
+                    'attributes' => array('update'),
+                    'object' => new \stdClass(),
+                    'result' => true,
+                    'voter_details' => array(
+                        array('class' => \get_class($voter1), 'vote' => VoterInterface::ACCESS_GRANTED),
+                        array('class' => \get_class($voter2), 'vote' => VoterInterface::ACCESS_GRANTED)
+                    ),
+                ),
+            )
+        );
+    }
+
+    /**
+     * Test the returned data when AccessDecisionManager is a TraceableAccessDecisionManager.
+     *
+     * @param string $strategy             strategy returned by the AccessDecisionManager
+     * @param array  $voters               voters returned by AccessDecisionManager
+     * @param array  $decisionLog          log of the votes and final decisions from AccessDecisionManager
+     * @param array  $expectedVoterClasses expected voter classes returned by the collector
+     * @param array  $expectedDecisionLog  expected decision log returned by the collector
+     *
+     * @dataProvider providerCollectDecisionLog
+     */
+    public function testCollectDecisionLog(string $strategy, array $decisionLog, array $voters, array $expectedVoterClasses, array $expectedDecisionLog): void
+    {
+        $accessDecisionManager = $this
+            ->getMockBuilder(TraceableAccessDecisionManager::class)
+            ->disableOriginalConstructor()
+            ->setMethods(array('getStrategy', 'getVoters', 'getDecisionLog'))
+            ->getMock();
+
+        $accessDecisionManager
+            ->expects($this->any())
+            ->method('getStrategy')
+            ->willReturn($strategy);
+
+        $accessDecisionManager
+            ->expects($this->any())
+            ->method('getVoters')
+            ->willReturn($voters);
+
+        $accessDecisionManager
+            ->expects($this->any())
+            ->method('getDecisionLog')
+            ->willReturn($decisionLog);
+
+        $dataCollector = new SecurityDataCollector(null, null, null, $accessDecisionManager);
+        $dataCollector->collect($this->getRequest(), $this->getResponse());
+
+        $this->assertEquals($dataCollector->getAccessDecisionLog(), $expectedDecisionLog, 'Wrong value returned by getAccessDecisionLog');
+
+        $this->assertSame(
+            array_map(function ($classStub) { return (string) $classStub; }, $dataCollector->getVoters()),
+            $expectedVoterClasses,
+            'Wrong value returned by getVoters'
+        );
+        $this->assertSame($dataCollector->getVoterStrategy(), $strategy, 'Wrong value returned by getVoterStrategy');
     }
 
     public function provideRoles()
