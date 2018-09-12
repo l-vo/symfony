@@ -325,13 +325,9 @@ class SecurityDataCollector extends DataCollector implements LateDataCollectorIn
      * Returns the FQCN of the security voters enabled in the application.
      *
      * @return string[]
-     *
-     * @deprecated deprecated since Symfony 4.2. Use the data returned by {@link getVoterDetails()} instead
      */
     public function getVoters()
     {
-        @trigger_error(sprintf('The "%s()" method is deprecated since Symfony 4.2. Use the data returned by getVoterDetails() instead', __METHOD__), E_USER_DEPRECATED);
-
         return $this->data['voters'];
     }
 

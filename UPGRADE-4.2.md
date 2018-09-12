@@ -207,7 +207,6 @@ SecurityBundle
    use Guard instead.
  * The `SimpleFormFactory` and `SimplePreAuthenticationFactory` classes have been deprecated,
    use Guard instead.
- * `SecurityDataCollector::getVoters` is deprecated. Use the data returned by `SecurityDataCollector::getVoterDetails` instead.  
 
 Serializer
 ----------
