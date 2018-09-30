@@ -40,6 +40,8 @@ class AddSecurityVotersPassTest extends TestCase
     public function testThatSecurityVotersAreProcessedInPriorityOrder()
     {
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', false);
+
         $container
             ->register('security.access.decision_manager', AccessDecisionManager::class)
             ->addArgument(array())
@@ -117,6 +119,7 @@ class AddSecurityVotersPassTest extends TestCase
     public function testThatVotersAreNotDecoratedWithoutDebugMode(): void
     {
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', false);
 
         $voterDef1 = new Definition(Voter::class);
         $voterDef1->addTag('security.voter');
@@ -144,6 +147,7 @@ class AddSecurityVotersPassTest extends TestCase
     public function testVoterMissingInterface()
     {
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', false);
         $container
             ->register('security.access.decision_manager', AccessDecisionManager::class)
             ->addArgument(array())

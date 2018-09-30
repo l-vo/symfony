@@ -500,6 +500,8 @@ abstract class CompleteConfigurationTest extends TestCase
         $file .= '.'.$this->getFileExtension();
 
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', false);
+
         $security = new SecurityExtension();
         $container->registerExtension($security);
 

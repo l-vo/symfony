@@ -43,7 +43,7 @@ class AddSecurityVotersPass implements CompilerPassInterface
             throw new LogicException('No security voters found. You need to tag at least one with "security.voter".');
         }
 
-        $debug = $container->hasParameter('kernel.debug') && $container->getParameter('kernel.debug');
+        $debug = $container->getParameter('kernel.debug');
 
         $decisionManagerVoters = array();
         foreach ($voters as $voter) {
