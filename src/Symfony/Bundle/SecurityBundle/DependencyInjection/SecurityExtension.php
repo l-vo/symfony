@@ -102,7 +102,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         $loader->load('collectors.xml');
         $loader->load('guard.xml');
 
-        if ($container->hasParameter('kernel.debug') && $container->getParameter('kernel.debug')) {
+        if ($container->getParameter('kernel.debug')) {
             $loader->load('security_debug.xml');
         }
 

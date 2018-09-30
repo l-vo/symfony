@@ -39,6 +39,8 @@ class AddSecurityVotersPassTest extends TestCase
     public function testThatSecurityVotersAreProcessedInPriorityOrder()
     {
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.debug', false);
+
         $container
             ->register('security.access.decision_manager', AccessDecisionManager::class)
             ->addArgument(array())
