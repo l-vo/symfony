@@ -204,6 +204,14 @@ class DeprecationErrorHandler
                 if (isset($mode[0]) && '/' === $mode[0]) {
                     return;
                 }
+
+                $compilerDeprecated = getenv('SYMFONY_COMPILER_DEPRECATIONS');
+                if ($compilerDeprecated && file_exists($compilerDeprecated)) {
+                    foreach (unserialize(file_get_contents($compilerDeprecated)) as $log) {
+                        $deprecationHandler($log['type'], $log['message'], $log['file'], $log['line']);
+                    }
+                }
+
                 $currErrorHandler = set_error_handler('var_dump');
                 restore_error_handler();
 

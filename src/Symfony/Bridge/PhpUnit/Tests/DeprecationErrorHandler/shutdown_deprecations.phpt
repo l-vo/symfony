@@ -4,6 +4,7 @@ Test DeprecationErrorHandler in default mode
 <?php
 
 putenv('SYMFONY_DEPRECATIONS_HELPER');
+putenv('SYMFONY_COMPILER_DEPRECATIONS');
 putenv('ANSICON');
 putenv('ConEmuANSI');
 putenv('TERM');

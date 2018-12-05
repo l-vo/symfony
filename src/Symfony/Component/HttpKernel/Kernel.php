@@ -564,6 +564,11 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
         return 'Container';
     }
 
+    protected function isPhpunitComposerInstallDefined()
+    {
+        return \defined('PHPUNIT_COMPOSER_INSTALL');
+    }
+
     /**
      * Initializes the service container.
      *
@@ -576,6 +581,7 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
         $cacheDir = $this->warmupDir ?: $this->getCacheDir();
         $cache = new ConfigCache($cacheDir.'/'.$class.'.php', $this->debug);
         $oldContainer = null;
+        $deprecationsFilename = $cacheDir.'/'.$class.'Deprecations.log';
         if ($fresh = $cache->isFresh()) {
             // Silence E_WARNING to ignore "include" failures - don't use "@" to prevent silencing fatal errors
             $errorLevel = error_reporting(\E_ALL ^ \E_WARNING);
@@ -594,12 +600,16 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
         }
 
         if ($fresh) {
+            if ($this->debug) {
+                putenv("SYMFONY_COMPILER_DEPRECATIONS=$deprecationsFilename");
+            }
+
             return;
         }
 
         if ($this->debug) {
             $collectedLogs = array();
-            $previousHandler = \defined('PHPUNIT_COMPOSER_INSTALL');
+            $previousHandler = $this->isPhpunitComposerInstallDefined();
             $previousHandler = $previousHandler ?: set_error_handler(function ($type, $message, $file, $line) use (&$collectedLogs, &$previousHandler) {
                 if (E_USER_DEPRECATED !== $type && E_DEPRECATED !== $type) {
                     return $previousHandler ? $previousHandler($type, $message, $file, $line) : false;
@@ -639,7 +649,8 @@ abstract class Kernel implements KernelInterface, RebootableInterface, Terminabl
             if ($this->debug && true !== $previousHandler) {
                 restore_error_handler();
 
-                file_put_contents($cacheDir.'/'.$class.'Deprecations.log', serialize(array_values($collectedLogs)));
+                putenv('SYMFONY_COMPILER_DEPRECATIONS');
+                file_put_contents($deprecationsFilename, serialize(array_values($collectedLogs)));
                 file_put_contents($cacheDir.'/'.$class.'Compiler.log', null !== $container ? implode("\n", $container->getCompiler()->getLog()) : '');
             }
         }

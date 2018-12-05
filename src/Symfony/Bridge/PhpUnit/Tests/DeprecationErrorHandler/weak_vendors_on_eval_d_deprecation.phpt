@@ -4,6 +4,7 @@ Test DeprecationErrorHandler in weak vendors mode on eval()'d deprecation
 <?php
 
 putenv('SYMFONY_DEPRECATIONS_HELPER=weak_vendors');
+putenv('SYMFONY_COMPILER_DEPRECATIONS');
 putenv('ANSICON');
 putenv('ConEmuANSI');
 putenv('TERM');

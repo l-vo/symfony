@@ -204,6 +204,55 @@ class KernelTest extends TestCase
         $kernel->boot();
     }
 
+    public function providerSfCompilerDeprecationsEnvVarOnlySetIfContainerAlreadyBuilt()
+    {
+        return array(
+            array(true, true, true, true),
+            array(true, false, false, false),
+            array(false, true, true, false),
+            array(false, false, true, false),
+        );
+    }
+
+    /**
+     * @dataProvider providerSfCompilerDeprecationsEnvVarOnlySetIfContainerAlreadyBuilt
+     */
+    public function testSfCompilerDeprecationsEnvVarOnlySetIfContainerAlreadyBuilt($isDebugMode, $cacheIsFresh, $resetEnvVar, $expectedSymfonyCompilerDeprecationsSet)
+    {
+        if ($resetEnvVar) {
+            putenv('SYMFONY_COMPILER_DEPRECATIONS');
+        }
+
+        $fs = new Filesystem();
+        $cacheDir = __DIR__.'/Fixtures/cache/mycachedir';
+        $fs->mkdir($cacheDir);
+        $fs->dumpFile($cacheDir.'/MockObjectTestDebugProjectContainer.php', '<?php return new Symfony\Component\DependencyInjection\ContainerBuilder();');
+
+        if ($cacheIsFresh) {
+            $fs->dumpFile($cacheDir.'/MockObjectTestDebugProjectContainer.php.meta', serialize(array()));
+        }
+
+        $kernel = $this->getKernel(array('getCacheDir', 'isPhpunitComposerInstallDefined'), array(), $isDebugMode);
+
+        $kernel
+            ->method('getCacheDir')
+            ->willReturn($cacheDir);
+
+        $kernel
+            ->method('isPhpunitComposerInstallDefined')
+            ->willReturn(false);
+
+        $kernel->boot();
+
+        if ($expectedSymfonyCompilerDeprecationsSet) {
+            $this->assertEquals($cacheDir.'/MockObjectTestDebugProjectContainerDeprecations.log', getenv('SYMFONY_COMPILER_DEPRECATIONS'));
+        } else {
+            $this->assertFalse(getenv('SYMFONY_COMPILER_DEPRECATIONS'));
+        }
+
+        $fs->remove($cacheDir);
+    }
+
     public function testShutdownCallsShutdownOnAllBundles()
     {
         $bundle = $this->getMockBuilder('Symfony\Component\HttpKernel\Bundle\Bundle')->getMock();
@@ -961,17 +1010,18 @@ EOF;
      *
      * @param array $methods Additional methods to mock (besides the abstract ones)
      * @param array $bundles Bundles to register
+     * @param bool  $debug   Whether debug mode is activated
      *
      * @return Kernel
      */
-    protected function getKernel(array $methods = array(), array $bundles = array())
+    protected function getKernel(array $methods = array(), array $bundles = array(), $debug = false)
     {
         $methods[] = 'registerBundles';
 
         $kernel = $this
             ->getMockBuilder('Symfony\Component\HttpKernel\Kernel')
             ->setMethods($methods)
-            ->setConstructorArgs(array('test', false))
+            ->setConstructorArgs(array('test', $debug))
             ->getMockForAbstractClass()
         ;
         $kernel->expects($this->any())
