@@ -11,13 +11,16 @@
 
 namespace Symfony\Component\Cache\DependencyInjection;
 
+use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\Adapter\TagAwareAdapterInterface;
 use Symfony\Component\Cache\Adapter\TraceableAdapter;
 use Symfony\Component\Cache\Adapter\TraceableTagAwareAdapter;
+use Symfony\Component\DependencyInjection\Compiler\AbstractRecursivePass;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * Inject a data collector to all the cache services to be able to get detailed statistics.
@@ -37,71 +40,43 @@ class CacheCollectorPass implements CompilerPassInterface
         $this->cachePoolRecorderInnerSuffix = $cachePoolRecorderInnerSuffix;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function process(ContainerBuilder $container)
     {
-        if (!$container->hasDefinition($this->dataCollectorCacheId)) {
+        if ($container->hasDefinition($this->dataCollectorCacheId)) {
             return;
         }
 
-        $collectorDefinition = $container->getDefinition($this->dataCollectorCacheId);
-        foreach ($container->findTaggedServiceIds($this->cachePoolTag) as $id => $attributes) {
-            $definition = $container->getDefinition($id);
+        // TODO: aliases ?
+        foreach ($container->getDefinitions() as $id => $definition) {
+            if (!is_subclass_of($definition->getClass(), AdapterInterface::class)
+                && !is_subclass_of($definition->getClass(), CacheInterface::class)) {
+                return;
+            }
+
             if ($definition->isAbstract()) {
-                continue;
+                return;
             }
 
-            $recorder = new Definition(TraceableAdapter::class);
-            $recorder->setTags($definition->getTags());
-            $definition->setTags([]);
-
-            $recorder->setPublic($definition->isPublic());
-            $recorder->setArguments([new Reference($innerId = $id.$this->cachePoolRecorderInnerSuffix)]);
-
-            $definition->setPublic(false);
-
-            $container->setDefinition($innerId, $definition);
-            $container->setDefinition($id, $recorder);
-
-            // Tell the collector to add the new instance
-            $collectorDefinition->addMethodCall('addInstance', [$id, new Reference($id)]);
-            $collectorDefinition->setPublic(false);
-
-            if (strlen($id) > 6 && substr($id, -6) == '.inner') {
-                $taggableId = substr($id, 1, -6);
-            } else {
-                $taggableId = sprintf('.%s.taggable', $id);
-            }
-
-            if ($this->registerTraceableTagAwareAdapter($container, $taggableId)) {
-                // Tell the collector to add the new instance
-                $collectorDefinition->addMethodCall('addInstance', [$taggableId, new Reference($taggableId)]);
-            }
+            $this->addToCollector($id, $definition);
         }
     }
 
-    private function registerTraceableTagAwareAdapter(ContainerBuilder $container, string $tagAwareAdapterId): bool
+    private function addToCollector(string $id, Definition $definition): void
     {
-        if (!$container->hasDefinition($tagAwareAdapterId)) {
-            return false;
-        }
+        $recorder = new Definition(is_subclass_of($definition->getClass(), TagAwareAdapterInterface::class) ? TraceableTagAwareAdapter::class : TraceableAdapter::class);
+        $recorder->setTags($definition->getTags());
+        $recorder->setPublic($definition->isPublic());
+        $recorder->setArguments([new Reference($innerId = $id.$this->cachePoolRecorderInnerSuffix)]);
 
-        $tagAwareAdapterDef = $container->getDefinition($tagAwareAdapterId);
-        if (!is_subclass_of($tagAwareAdapterDef->getClass(), TagAwareAdapterInterface::class)) {
-            return false;
-        }
+        $definition->setTags([]);
+        $definition->setPublic(false);
 
-        $tagAwareRecorderInnerId = $tagAwareAdapterId.$this->cachePoolRecorderInnerSuffix;
-        $tagAwareRecorder = (new Definition(TraceableTagAwareAdapter::class))
-            ->setPublic($tagAwareAdapterDef->isPublic())
-            ->setArguments([new Reference($tagAwareRecorderInnerId)]);
+        $container->setDefinition($innerId, $definition);
+        $container->setDefinition($id, $recorder);
 
-        $tagAwareAdapterDef->setPublic(false);
-        $container->setDefinition($tagAwareRecorderInnerId, $tagAwareAdapterDef);
-        $container->setDefinition($tagAwareAdapterId, $tagAwareRecorder);
-
-        return true;
+        // Tell the collector to add the new instance
+        $collectorDefinition = $container->getDefinition($this->dataCollectorCacheId);
+        $collectorDefinition->addMethodCall('addInstance', [$id, new Reference($id)]);
+        $collectorDefinition->setPublic(false);
     }
 }
