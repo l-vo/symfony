@@ -11,6 +11,7 @@
 
 namespace Symfony\Component\Cache\DependencyInjection;
 
+use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\Adapter\TagAwareAdapterInterface;
 use Symfony\Component\Cache\Adapter\TraceableAdapter;
@@ -42,7 +43,7 @@ class CacheCollectorPass implements CompilerPassInterface
 
     public function process(ContainerBuilder $container)
     {
-        if ($container->hasDefinition($this->dataCollectorCacheId)) {
+        if (!$container->hasDefinition($this->dataCollectorCacheId)) {
             return;
         }
 
@@ -50,18 +51,18 @@ class CacheCollectorPass implements CompilerPassInterface
         foreach ($container->getDefinitions() as $id => $definition) {
             if (!is_subclass_of($definition->getClass(), AdapterInterface::class)
                 && !is_subclass_of($definition->getClass(), CacheInterface::class)) {
-                return;
+                continue;
             }
 
-            if ($definition->isAbstract()) {
-                return;
+            if ($definition->isAbstract() || $definition->getClass() == AbstractAdapter::class) {
+                continue;
             }
 
-            $this->addToCollector($id, $definition);
+            $this->addToCollector($container, $id, $definition);
         }
     }
 
-    private function addToCollector(string $id, Definition $definition): void
+    private function addToCollector(ContainerBuilder $container, string $id, Definition $definition): void
     {
         $recorder = new Definition(is_subclass_of($definition->getClass(), TagAwareAdapterInterface::class) ? TraceableTagAwareAdapter::class : TraceableAdapter::class);
         $recorder->setTags($definition->getTags());
