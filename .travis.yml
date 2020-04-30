@@ -374,4 +374,5 @@ install:
       export -f run_tests
 
 script:
-    echo $TRAVIS_PHP_VERSION $php_extra | xargs -n1 bash -c '(</dev/tty run_tests $0)' || false
+  - php -r 'echo PHP_VERSION_ID;'
+  - echo $TRAVIS_PHP_VERSION $php_extra | xargs -n1 bash -c '(</dev/tty run_tests $0)' || false
