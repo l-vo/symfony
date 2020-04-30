@@ -36,6 +36,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\DependencyInjection\ServiceLocator;
 use Symfony\Component\DependencyInjection\Tests\Compiler\Foo;
 use Symfony\Component\DependencyInjection\Tests\Compiler\Wither;
+use Symfony\Component\DependencyInjection\Tests\Compiler\WitherStaticReturnType;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\FooWithAbstractArgument;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\ScalarFactory;
@@ -1357,6 +1358,31 @@ class PhpDumperTest extends TestCase
         eval('?>'.$dump);
 
         $container = new \Symfony_DI_PhpDumper_Service_Wither();
+
+        $wither = $container->get('wither');
+        $this->assertInstanceOf(Foo::class, $wither->foo);
+    }
+
+    /**
+     * @requires PHP 8
+     */
+    public function testWitherWithStaticReturnType()
+    {
+        $container = new ContainerBuilder();
+        $container->register(Foo::class);
+
+        $container
+            ->register('wither', WitherStaticReturnType::class)
+            ->setPublic(true)
+            ->setAutowired(true);
+
+        $container->compile();
+        $dumper = new PhpDumper($container);
+        $dump = $dumper->dump(['class' => 'Symfony_DI_PhpDumper_Service_WitherStaticReturnType']);
+        $this->assertStringEqualsFile(self::$fixturesPath.'/php/services_wither_staticreturntype.php', $dump);
+        eval('?>'.$dump);
+
+        $container = new \Symfony_DI_PhpDumper_Service_WitherStaticReturnType();
 
         $wither = $container->get('wither');
         $this->assertInstanceOf(Foo::class, $wither->foo);

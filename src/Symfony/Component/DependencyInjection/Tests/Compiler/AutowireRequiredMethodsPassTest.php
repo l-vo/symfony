@@ -99,4 +99,28 @@ class AutowireRequiredMethodsPassTest extends TestCase
         ];
         $this->assertSame($expected, $methodCalls);
     }
+
+    /**
+     * @requires PHP 8
+     */
+    public function testWitherWithStaticReturnTypeInjection()
+    {
+        $container = new ContainerBuilder();
+        $container->register(Foo::class);
+
+        $container
+            ->register('wither', WitherStaticReturnType::class)
+            ->setAutowired(true);
+
+        (new ResolveClassPass())->process($container);
+        (new AutowireRequiredMethodsPass())->process($container);
+
+        $methodCalls = $container->getDefinition('wither')->getMethodCalls();
+
+        $expected = [
+            ['withFoo', [], true],
+            ['setFoo', []],
+        ];
+        $this->assertSame($expected, $methodCalls);
+    }
 }
